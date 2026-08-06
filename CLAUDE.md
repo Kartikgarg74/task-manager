@@ -37,9 +37,14 @@ is about the code itself.
   is the schema source of truth — read it before touching `models.py`, they
   must never drift apart.
 - **Scheduling**: APScheduler, running inside the FastAPI process
-  (`backend/app/jobs/scheduler.py`) — not Vercel Cron, since this isn't
-  hosted on Vercel. See `docs/architecture.md` for the hosting story.
+  (`backend/app/jobs/scheduler.py`) — not Vercel Cron. The backend deploys
+  to Render (`backend/render.yaml`), not Vercel, specifically because it
+  needs to stay alive continuously for this to work — see README's
+  "Architecture" section for why.
 - **Email**: Resend, for the 9:30 AM summary only.
+- **Hosting**: frontend on Vercel (static build), backend on Render's
+  Starter plan — not the free tier, which sleeps on idle and would break
+  the scheduler and WebSocket the same way serverless would.
 
 ## Layout
 

@@ -1,0 +1,34 @@
+# Render Blueprint — see docs/README "Architecture": this is the persistent
+# process the APScheduler jobs and in-memory WebSocket manager both assume.
+# Must stay on a plan that doesn't sleep on idle (Starter or above) — a
+# free/sleeping tier breaks the same way serverless would (see the
+# conversation that ruled out Vercel for the backend specifically).
+services:
+  - type: web
+    name: task-manager-backend
+    runtime: python
+    plan: starter
+    region: singapore
+    rootDir: backend
+    buildCommand: "pip install --upgrade pip && pip install -e ."
+    preDeployCommand: "alembic upgrade head"
+    # single process, no --workers: a second worker would run its own
+    # APScheduler instance and its own in-memory WebSocket connection set,
+    # which is exactly the multi-instance problem this plan exists to avoid.
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      - key: WEB_AUTH_SECRET
+        sync: false
+      - key: WEB_AUTH_EMAIL
+        sync: false
+      - key: WEB_AUTH_PASSWORD_HASH
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false

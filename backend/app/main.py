@@ -45,7 +45,9 @@ app = FastAPI(title="Task Manager", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to the frontend's real origin before shipping publicly
+    # "*" only until both sides are actually deployed — once the Vercel frontend
+    # has a real URL, replace with allow_origins=["https://<your-project>.vercel.app"]
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

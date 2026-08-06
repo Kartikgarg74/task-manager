@@ -38,6 +38,26 @@ Point Claude Code's MCP config (or a claude.ai Connector, for web/mobile) at
 
 ---
 
+## Deployment
+
+**Backend → Render**, not Vercel — Vercel's FastAPI support runs as a
+serverless function that scales with traffic, which doesn't hold up for
+this specific backend: `app/jobs/scheduler.py` needs a process that's alive
+continuously to fire at 23:59/06:00/09:30, and `app/websocket.py` keeps
+connection state in memory, which breaks the moment there's more than one
+instance. Render's Starter plan (not the free tier, which sleeps on idle —
+same problem as serverless) gives one always-on process, matching what the
+code already assumes.
+
+1. New Web Service on Render, point it at this repo — `backend/render.yaml` has everything else (build command, start command, health check, single-process constraint).
+2. Set the real values for every env var marked `sync: false` in `render.yaml` (same names as `backend/.env.example`) in Render's dashboard.
+3. First deploy runs `alembic upgrade head` automatically (`preDeployCommand`).
+4. Update `backend/app/main.py`'s CORS `allow_origins` from `"*"` to the real Vercel URL once step 5 is done.
+
+**Frontend → Vercel** — static build, root directory `frontend`, framework `Vite`. Set `VITE_API_URL` to the Render service's URL from step 1.
+
+---
+
 ## Architecture
 
 One FastAPI service is the only thing that ever touches Postgres. The
@@ -53,7 +73,7 @@ flowchart TB
     Claude["Claude<br/><small>Claude Code · claude.ai web · mobile</small>"]
     Browser["Browser<br/><small>React SPA, static build — hosted on Vercel</small>"]
 
-    subgraph FastAPI["FastAPI — one service, hosted on Railway/Render"]
+    subgraph FastAPI["FastAPI — one service, hosted on Render (Starter plan)"]
         REST["REST API<br/>/api/*"]
         MCP["MCP endpoint<br/>/mcp"]
         WS["WebSocket<br/>/ws"]
