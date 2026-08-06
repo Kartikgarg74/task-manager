@@ -1,0 +1,17 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Secrets — never committed, .env.example is the template
+backend/.env
+frontend/.env
+
+# OS
+.DS_Store
