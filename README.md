@@ -52,7 +52,7 @@ the app in a while. No data loss, just a momentary lag.
 
 1. **Render**: New + → **Blueprint** (not "Web Service" — Blueprint reads `backend/render.yaml` and configures everything itself: build command, start command, health check, single-process constraint, free plan).
 2. Fill in the real values for every env var marked `sync: false` in `render.yaml` (same names as `backend/.env.example`) when Render prompts for them.
-3. First deploy runs `alembic upgrade head` automatically (`preDeployCommand`). You'll get a URL like `https://task-manager-backend.onrender.com`.
+3. `alembic upgrade head` runs automatically as part of the start command every time the service boots (idempotent — a no-op once already at head; `preDeployCommand` needs a paid Render plan, not available free). You'll get a URL like `https://task-manager-backend.onrender.com`.
 4. **GitHub**: in this repo's Settings → Secrets and variables → Actions, add `RENDER_BACKEND_URL` (the URL from step 3) and `INTERNAL_CRON_SECRET` (matching what you set in step 2). The three workflows in `.github/workflows/` pick these up automatically — no further setup.
 5. Update `backend/app/main.py`'s CORS `allow_origins` from `"*"` to the real Vercel URL once the frontend is deployed below.
 
