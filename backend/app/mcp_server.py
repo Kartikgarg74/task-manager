@@ -11,12 +11,23 @@ import uuid
 from contextvars import ContextVar
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from app.database import SessionLocal
 from app.models import Device
 from app.services import board, digest as digest_service, history, updates as update_service
 
-mcp = FastMCP("task-manager")
+# ponytail: the SDK's default DNS-rebinding protection only allows a hardcoded
+# local-host allowlist, rejecting every real Host header including production's
+# — it guards against a malicious webpage hitting an unauthenticated local MCP
+# server, which isn't our threat model: every /mcp request already requires a
+# valid device bearer token (app/main.py's MCPDeviceAuthMiddleware), checked
+# before this SDK-level layer would even run. Revisit if this ever serves an
+# MCP tool without that auth layer in front of it.
+mcp = FastMCP(
+    "task-manager",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 # Set by the ASGI auth middleware (app/main.py) before each MCP tool call, from the
 # device resolved out of the bearer token — see app/auth.py.
