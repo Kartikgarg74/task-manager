@@ -6,11 +6,10 @@ into .env — there's no signup flow, this is the only account that will ever ex
 
 import sys
 
-from passlib.context import CryptContext
+from app.auth import hash_secret
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("usage: set_password.py <password>")
         sys.exit(1)
-    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    print(ctx.hash(sys.argv[1]))
+    print(hash_secret(sys.argv[1]))

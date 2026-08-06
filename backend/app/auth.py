@@ -10,10 +10,10 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,17 +21,24 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import Device
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 JWT_ALGORITHM = "HS256"
 JWT_TTL = timedelta(days=30)
 
 
+def hash_secret(plaintext: str) -> str:
+    return bcrypt.hashpw(plaintext.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_secret(plaintext: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plaintext.encode(), hashed.encode())
+
+
 def new_device_token() -> tuple[str, str]:
     """Returns (plaintext_token, hash_to_store). Plaintext is shown once, never persisted."""
     token = secrets.token_urlsafe(32)
-    return token, pwd_context.hash(token)
+    return token, hash_secret(token)
 
 
 async def resolve_device(
@@ -46,7 +53,7 @@ async def resolve_device(
 
     result = await db.execute(select(Device).where(Device.revoked_at.is_(None)))
     for device in result.scalars():
-        if pwd_context.verify(creds.credentials, device.token_hash):
+        if verify_secret(creds.credentials, device.token_hash):
             device.last_seen_at = datetime.now(timezone.utc)
             await db.commit()
             return device
