@@ -223,14 +223,14 @@ open WebSocket so the board updates instantly for anyone else watching it.
 
 ```mermaid
 flowchart TD
-    A[APScheduler — 23:59 IST primary\n+ 06:00 IST fallback, catch-up only] --> B[run_digest_generation]
-    B --> C{per active project}
-    C --> D["query updates: created_at in APP_TIMEZONE = digest_date\n→ done_points"]
-    D --> E["query cards: role ≠ done, order by priority\n→ top 10 non-blocked + ALL blocked (blocked_since)"]
-    E --> F["same updates → minutes_worked, efficiency_score"]
-    F --> G{digest already exists\nfor (project, date)?}
-    G -- yes --> H[skip — nothing written]
-    G -- no --> I[insert into digests — locked in]
+    A["APScheduler — 23:59 IST primary<br/>+ 06:00 IST fallback, catch-up only"] --> B[run_digest_generation]
+    B --> C{"per active project"}
+    C --> D["query updates: created_at in APP_TIMEZONE = digest_date<br/>&rarr; done_points"]
+    D --> E["query cards: role not equal done, order by priority<br/>&rarr; top 10 non-blocked + ALL blocked, via blocked_since"]
+    E --> F["same updates &rarr; minutes_worked, efficiency_score"]
+    F --> G{"digest already exists<br/>for project and date?"}
+    G -- yes --> H["skip — nothing written"]
+    G -- no --> I["insert into digests — locked in"]
 ```
 
 The date match runs in `APP_TIMEZONE` (Asia/Kolkata), not the database's
@@ -243,12 +243,12 @@ having had a chance to run.
 
 ```mermaid
 flowchart TD
-    A[APScheduler — 09:30 IST daily] --> B{notification already\nsent for today?}
-    B -- yes --> C[no-op]
-    B -- no --> D[query latest digest per active project, yesterday]
-    D --> E["aggregate: total minutes (sum, 0 if idle)\nmissing digest → named, not skipped"]
-    E --> F[send one email — always, even on an idle day]
-    F --> G[insert into notifications]
+    A["APScheduler — 09:30 IST daily"] --> B{"notification already<br/>sent for today?"}
+    B -- yes --> C["no-op"]
+    B -- no --> D["query latest digest per active project, yesterday"]
+    D --> E["aggregate: total minutes, sum, 0 if idle<br/>missing digest &rarr; named, not skipped"]
+    E --> F["send one email — always, even on an idle day"]
+    F --> G["insert into notifications"]
 ```
 
 A missing email is ambiguous — did nothing happen, or did the job break?
