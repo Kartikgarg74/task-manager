@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     notify_email: str
     resend_api_key: str = ""
 
+    # Shared secret for the external cron trigger (GitHub Actions) — a third
+    # auth mechanism alongside device tokens and the web JWT, since neither
+    # of those fit "a scheduled workflow calling an endpoint."
+    internal_cron_secret: str
+
 
 @lru_cache
 def get_settings() -> Settings:

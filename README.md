@@ -40,21 +40,23 @@ Point Claude Code's MCP config (or a claude.ai Connector, for web/mobile) at
 
 ## Deployment
 
-**Backend → Render**, not Vercel — Vercel's FastAPI support runs as a
-serverless function that scales with traffic, which doesn't hold up for
-this specific backend: `app/jobs/scheduler.py` needs a process that's alive
-continuously to fire at 23:59/06:00/09:30, and `app/websocket.py` keeps
-connection state in memory, which breaks the moment there's more than one
-instance. Render's Starter plan (not the free tier, which sleeps on idle —
-same problem as serverless) gives one always-on process, matching what the
-code already assumes.
+**Backend → Render, free tier**, not Vercel — Vercel's FastAPI support runs
+as a serverless function that scales with traffic, and Render's paid plans
+cost real money every month. Neither is required: this backend has no
+in-process scheduler and no in-memory state that needs a guaranteed-alive
+process (see "Architecture" below) — scheduling is external, via GitHub
+Actions. The one honest cost of the free tier: the instance sleeps after
+~15 min idle and takes 30-60s to wake on the next request, which means an
+open WebSocket connection drops and briefly reconnects if nobody's touched
+the app in a while. No data loss, just a momentary lag.
 
-1. New Web Service on Render, point it at this repo — `backend/render.yaml` has everything else (build command, start command, health check, single-process constraint).
-2. Set the real values for every env var marked `sync: false` in `render.yaml` (same names as `backend/.env.example`) in Render's dashboard.
-3. First deploy runs `alembic upgrade head` automatically (`preDeployCommand`).
-4. Update `backend/app/main.py`'s CORS `allow_origins` from `"*"` to the real Vercel URL once step 5 is done.
+1. **Render**: New + → **Blueprint** (not "Web Service" — Blueprint reads `backend/render.yaml` and configures everything itself: build command, start command, health check, single-process constraint, free plan).
+2. Fill in the real values for every env var marked `sync: false` in `render.yaml` (same names as `backend/.env.example`) when Render prompts for them.
+3. First deploy runs `alembic upgrade head` automatically (`preDeployCommand`). You'll get a URL like `https://task-manager-backend.onrender.com`.
+4. **GitHub**: in this repo's Settings → Secrets and variables → Actions, add `RENDER_BACKEND_URL` (the URL from step 3) and `INTERNAL_CRON_SECRET` (matching what you set in step 2). The three workflows in `.github/workflows/` pick these up automatically — no further setup.
+5. Update `backend/app/main.py`'s CORS `allow_origins` from `"*"` to the real Vercel URL once the frontend is deployed below.
 
-**Frontend → Vercel** — static build, root directory `frontend`, framework `Vite`. Set `VITE_API_URL` to the Render service's URL from step 1.
+**Frontend → Vercel** — static build, root directory `frontend`, framework `Vite`. Set `VITE_API_URL` to the Render service's URL from step 3.
 
 ---
 
@@ -72,12 +74,13 @@ one real API surface instead of your database schema being your API.
 flowchart TB
     Claude["Claude<br/><small>Claude Code · claude.ai web · mobile</small>"]
     Browser["Browser<br/><small>React SPA, static build — hosted on Vercel</small>"]
+    GHA["GitHub Actions<br/><small>3 scheduled workflows — free, no time limit</small>"]
 
-    subgraph FastAPI["FastAPI — one service, hosted on Render (Starter plan)"]
+    subgraph FastAPI["FastAPI — one service, hosted on Render (free tier)"]
         REST["REST API<br/>/api/*"]
         MCP["MCP endpoint<br/>/mcp"]
         WS["WebSocket<br/>/ws"]
-        Jobs["APScheduler jobs<br/><small>in-process, not Vercel Cron</small>"]
+        Internal["/internal/* endpoints<br/><small>secret-protected</small>"]
     end
 
     PG[("Postgres<br/><small>Supabase-hosted — managed Postgres only,<br/>no client SDK / RLS / Realtime / Auth</small>")]
@@ -86,11 +89,12 @@ flowchart TB
     Claude -- "MCP tool call<br/>device bearer token" --> MCP
     Browser -- "REST + WebSocket<br/>web JWT" --> REST
     Browser -.-> WS
+    GHA -- "3x daily, X-Cron-Secret<br/>wakes a sleeping instance" --> Internal
 
     REST --> PG
     MCP --> PG
-    Jobs --> PG
-    Jobs -- "once daily" --> Resend
+    Internal --> PG
+    Internal -- "once daily" --> Resend
 ```
 
 **Two separate auth mechanisms reach the same service by two different
@@ -243,7 +247,7 @@ open WebSocket so the board updates instantly for anyone else watching it.
 
 ```mermaid
 flowchart TD
-    A["APScheduler — 23:59 IST primary<br/>+ 06:00 IST fallback, catch-up only"] --> B[run_digest_generation]
+    A["GitHub Actions cron<br/>POST /internal/digest/primary at 23:59 IST<br/>POST /internal/digest/fallback at 06:00 IST"] --> B[run_digest_generation]
     B --> C{"per active project"}
     C --> D["query updates: created_at in APP_TIMEZONE = digest_date<br/>&rarr; done_points"]
     D --> E["query cards: role not equal done, order by priority<br/>&rarr; top 10 non-blocked + ALL blocked, via blocked_since"]
@@ -263,7 +267,7 @@ having had a chance to run.
 
 ```mermaid
 flowchart TD
-    A["APScheduler — 09:30 IST daily"] --> B{"notification already<br/>sent for today?"}
+    A["GitHub Actions cron<br/>POST /internal/notify at 09:30 IST"] --> B{"notification already<br/>sent for today?"}
     B -- yes --> C["no-op"]
     B -- no --> D["query latest digest per active project, yesterday"]
     D --> E["aggregate: total minutes, sum, 0 if idle<br/>missing digest &rarr; named, not skipped"]

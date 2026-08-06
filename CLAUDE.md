@@ -36,31 +36,35 @@ is about the code itself.
 - **Migrations**: Alembic. `backend/alembic/versions/0001_initial_schema.py`
   is the schema source of truth — read it before touching `models.py`, they
   must never drift apart.
-- **Scheduling**: APScheduler, running inside the FastAPI process
-  (`backend/app/jobs/scheduler.py`) — not Vercel Cron. The backend deploys
-  to Render (`backend/render.yaml`), not Vercel, specifically because it
-  needs to stay alive continuously for this to work — see README's
-  "Architecture" section for why.
+- **Scheduling**: no in-process scheduler — GitHub Actions (`.github/workflows/`)
+  curls three secret-protected endpoints (`app/routers/internal.py`) on a
+  schedule instead. Deliberate: it means the backend can run on Render's
+  free tier, which sleeps on idle, since the job doesn't depend on the
+  process being continuously alive — the trigger request itself wakes it.
 - **Email**: Resend, for the 9:30 AM summary only.
-- **Hosting**: frontend on Vercel (static build), backend on Render's
-  Starter plan — not the free tier, which sleeps on idle and would break
-  the scheduler and WebSocket the same way serverless would.
+- **Hosting**: frontend on Vercel (static build), backend on Render's free
+  tier (`backend/render.yaml`, deployed via Render's Blueprint feature).
+  Honest tradeoff of free: an open WebSocket drops and takes 30-60s to
+  reconnect if the instance had gone to sleep — no data loss, just a lag.
 
 ## Layout
 
 ```
-backend/app/
-  main.py          FastAPI app — mounts REST routers + the MCP server on /mcp
-  models.py        SQLAlchemy models — must match the Alembic migration exactly
-  auth.py          device tokens (MCP) and web JWT (site) — two separate mechanisms
-  mcp_server.py    the 8 MCP tools — thin wrappers over services/
-  websocket.py     in-memory broadcast; see its own docstring for the scaling ceiling
-  services/        shared logic: board, history, updates, digest, productivity
-  routers/         REST endpoints — mirror the service layer, not a second implementation
-  jobs/            the three scheduled crons (digest primary/fallback, notify)
+backend/
+  render.yaml      Render Blueprint — free web service, single process
+  app/
+    main.py          FastAPI app — mounts REST routers + the MCP server on /mcp
+    models.py        SQLAlchemy models — must match the Alembic migration exactly
+    auth.py          device tokens (MCP) and web JWT (site) — two separate mechanisms
+    mcp_server.py    the 8 MCP tools — thin wrappers over services/
+    websocket.py     in-memory broadcast; see its own docstring for the scaling ceiling
+    services/        shared logic: board, history, updates, digest, productivity
+    routers/         REST endpoints, incl. internal.py — the cron trigger endpoints
+    jobs/            digest_job.py, notify_job.py — pure functions, called by internal.py
 frontend/src/
   api/client.ts    the only place that talks to the backend
   pages/           Board, Today, Productivity, Overview, Devices, Login
+.github/workflows/ three scheduled workflows that curl the /internal endpoints
 ```
 
 The architecture diagram, ER diagram, and every other design sheet live

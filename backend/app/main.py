@@ -1,9 +1,13 @@
-"""One FastAPI app, two front doors — REST for the web app, MCP (streamable HTTP)
-for Claude — sharing the same service layer and the same Postgres connection.
-See docs/architecture.md (Sheet 07) for why this is one service, not two.
-"""
+"""One FastAPI app, three front doors — REST for the web app, MCP (streamable
+HTTP) for Claude, and /internal for the external cron trigger — sharing the
+same service layer and the same Postgres connection. See README's
+"Architecture" section for why this is one service, not several.
 
-from contextlib import asynccontextmanager
+No in-process scheduler here on purpose: this deploys on Render's free tier,
+which sleeps on idle, so a background scheduler thread can't be trusted to
+be alive at 23:59. Scheduling is external instead — see app/routers/internal.py
+and .github/workflows/.
+"""
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,9 +15,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.auth import resolve_device
 from app.database import SessionLocal
-from app.jobs.scheduler import start_scheduler
 from app.mcp_server import mcp, set_current_device
-from app.routers import auth, devices, digests, projects
+from app.routers import auth, devices, digests, internal, projects
 
 
 class MCPDeviceAuthMiddleware(BaseHTTPMiddleware):
@@ -35,13 +38,7 @@ class MCPDeviceAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    start_scheduler()
-    yield
-
-
-app = FastAPI(title="Task Manager", lifespan=lifespan)
+app = FastAPI(title="Task Manager")
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +54,7 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(digests.router)
 app.include_router(devices.router)
+app.include_router(internal.router)
 
 app.mount("/mcp", mcp.streamable_http_app())
 
