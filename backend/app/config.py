@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     notify_email: str
     resend_api_key: str = ""
+    # Resend's shared sandbox sender — sends successfully with zero setup.
+    # Override once you verify your own domain with Resend.
+    notify_from_email: str = "Task Manager <onboarding@resend.dev>"
 
     # Shared secret for the external cron trigger (GitHub Actions) — a third
     # auth mechanism alongside device tokens and the web JWT, since neither

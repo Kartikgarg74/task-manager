@@ -43,22 +43,31 @@ async def run_morning_notification(today: date) -> None:
             )
 
         body = f"Yesterday: {total_minutes} minutes across {len(projects)} project(s).\n\n" + "\n".join(lines)
-        _send_email(subject=f"Task Manager — {yesterday.isoformat()}", body=body)
+        sent = _send_email(subject=f"Task Manager — {yesterday.isoformat()}", body=body)
 
-        db.add(Notification(notification_date=today))
-        await db.commit()
+        # Only consume today's idempotency slot if an email was actually attempted.
+        # Writing this row unconditionally meant "no key configured yet" permanently
+        # burned that day's send — the key could be added later the same day and
+        # nothing would go out until tomorrow, with no way to tell from the outside.
+        if sent:
+            db.add(Notification(notification_date=today))
+            await db.commit()
 
 
-def _send_email(subject: str, body: str) -> None:
+def _send_email(subject: str, body: str) -> bool:
     settings = get_settings()
     if not settings.resend_api_key:
-        return  # local dev without email configured — job still runs, just doesn't send
+        return False  # local dev without email configured — job still runs, just doesn't send
     resend.api_key = settings.resend_api_key
     resend.Emails.send(
         {
-            "from": "Task Manager <notifications@yourdomain.example>",
+            # Resend's shared sandbox sender — works with zero setup, no domain
+            # verification needed. Swap for your own once you verify a domain
+            # with Resend, via NOTIFY_FROM_EMAIL.
+            "from": settings.notify_from_email,
             "to": settings.notify_email,
             "subject": subject,
             "text": body,
         }
     )
+    return True
