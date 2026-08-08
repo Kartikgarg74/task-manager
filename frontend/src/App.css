@@ -178,6 +178,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   transition: filter .15s;
 }
 .auth-card button:hover { filter: brightness(1.1); }
+.auth-card button:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
 .error { color: var(--status-blocked); font-size: 13px; }
 
 /* ---- page shell ---- */
