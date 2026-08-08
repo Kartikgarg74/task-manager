@@ -4,7 +4,22 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 
-type Device = { id: string; label: string; last_seen_at: string | null; revoked_at: string | null };
+type Device = {
+  id: string;
+  label: string;
+  created_at: string;
+  last_seen_at: string | null;
+  revoked_at: string | null;
+};
+
+function formatWhen(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export function DevicesPage() {
   const [label, setLabel] = useState("");
@@ -52,8 +67,20 @@ export function DevicesPage() {
       <ul className="device-list">
         {devices?.map((d) => (
           <li key={d.id}>
-            <span>{d.label}</span>
-            <span className="chip">{d.revoked_at ? "revoked" : d.last_seen_at ? "active" : "unused"}</span>
+            <div className="device-main">
+              <span className="device-label">{d.label}</span>
+              <span className="device-meta">
+                created {formatWhen(d.created_at)}
+                {d.revoked_at
+                  ? ` · revoked ${formatWhen(d.revoked_at)}`
+                  : d.last_seen_at
+                    ? ` · last seen ${formatWhen(d.last_seen_at)}`
+                    : " · never used yet"}
+              </span>
+            </div>
+            <span className={`chip status-chip status-${d.revoked_at ? "blocked" : d.last_seen_at ? "done" : "backlog"}`}>
+              {d.revoked_at ? "revoked" : d.last_seen_at ? "active" : "unused"}
+            </span>
             {!d.revoked_at && <button onClick={() => revoke.mutate(d.id)}>Revoke</button>}
           </li>
         ))}

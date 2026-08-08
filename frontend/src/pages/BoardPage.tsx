@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useBoardSocket } from "../hooks/useBoardSocket";
 import { KanbanColumn } from "../components/KanbanColumn";
+import { CardDetailPanel } from "../components/CardDetailPanel";
 import type { Card } from "../components/CardItem";
 
 type Board = {
@@ -16,6 +17,7 @@ export function BoardPage() {
   const { slug = "" } = useParams();
   const queryClient = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
   useBoardSocket(slug);
 
   const { data: board, isLoading } = useQuery<Board>({
@@ -43,6 +45,9 @@ export function BoardPage() {
 
   if (isLoading || !board?.project) return <p className="loading">Loading&hellip;</p>;
 
+  const openCard = board.cards.find((c) => c.id === openCardId);
+  const openCardRole = openCard && board.columns.find((c) => c.id === openCard.column_id)?.role;
+
   return (
     <div className="board-page">
       <header className="board-header">
@@ -62,11 +67,22 @@ export function BoardPage() {
           <KanbanColumn
             key={col.id}
             name={col.name}
+            role={col.role}
             cards={board.cards.filter((c) => c.column_id === col.id)}
             onAdvance={(cardId, targetRole) => moveCard.mutate({ cardId, targetRole })}
+            onOpen={(cardId) => setOpenCardId(cardId)}
           />
         ))}
       </div>
+
+      {openCard && openCardRole && (
+        <CardDetailPanel
+          projectSlug={slug}
+          card={openCard}
+          role={openCardRole}
+          onClose={() => setOpenCardId(null)}
+        />
+      )}
     </div>
   );
 }

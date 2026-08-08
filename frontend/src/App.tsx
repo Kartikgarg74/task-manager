@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Login } from "./pages/Login";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -6,6 +6,7 @@ import { BoardPage } from "./pages/BoardPage";
 import { TodayPage } from "./pages/TodayPage";
 import { ProductivityPage } from "./pages/ProductivityPage";
 import { DevicesPage } from "./pages/DevicesPage";
+import { Sidebar } from "./components/Sidebar";
 import "./App.css";
 
 const queryClient = new QueryClient();
@@ -19,9 +20,18 @@ function ProjectNav() {
   const { slug = "" } = useParams();
   return (
     <nav className="project-nav">
-      <Link to={`/projects/${slug}`}>Board</Link>
-      <Link to={`/projects/${slug}/today`}>Today</Link>
-      <Link to={`/projects/${slug}/productivity`}>Productivity</Link>
+      <NavLink to={`/projects/${slug}`} end className={({ isActive }) => (isActive ? "active" : "")}>
+        Board
+      </NavLink>
+      <NavLink to={`/projects/${slug}/today`} className={({ isActive }) => (isActive ? "active" : "")}>
+        Today
+      </NavLink>
+      <NavLink
+        to={`/projects/${slug}/productivity`}
+        className={({ isActive }) => (isActive ? "active" : "")}
+      >
+        Productivity
+      </NavLink>
     </nav>
   );
 }
@@ -29,13 +39,8 @@ function ProjectNav() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
-      <header className="top-bar">
-        <Link to="/overview" className="brand">
-          Task Manager
-        </Link>
-        <Link to="/devices">Devices</Link>
-      </header>
-      {children}
+      <Sidebar />
+      <main className="app-main">{children}</main>
     </div>
   );
 }

@@ -14,10 +14,19 @@ type HistoryShape = {
   total_minutes: number;
 };
 
+const RANGES = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "7 days" },
+  { key: "month", label: "1 month" },
+] as const;
+type RangeKey = (typeof RANGES)[number]["key"];
+
 export function ProductivityPage() {
   const { slug = "" } = useParams();
   const [params, setParams] = useSearchParams();
-  const range = (params.get("range") as "today" | "week" | "month") || "today";
+  const range = (params.get("range") as RangeKey) || "today";
+  const isSingleDay = range === "today" || range === "yesterday";
 
   const { data, isLoading } = useQuery({
     queryKey: ["productivity", slug, range],
@@ -29,15 +38,16 @@ export function ProductivityPage() {
   return (
     <div className="productivity-page">
       <h1>Productivity</h1>
+      <p className="page-subtitle">This project only — see <a href="/overview">Overview</a> for combined totals across every project.</p>
       <div className="range-toggle">
-        {(["today", "week", "month"] as const).map((r) => (
-          <button key={r} className={r === range ? "active" : ""} onClick={() => setParams({ range: r })}>
-            {r}
+        {RANGES.map((r) => (
+          <button key={r.key} className={r.key === range ? "active" : ""} onClick={() => setParams({ range: r.key })}>
+            {r.label}
           </button>
         ))}
       </div>
 
-      {range === "today" ? (
+      {isSingleDay ? (
         <TodayView data={data as TodayShape} />
       ) : (
         <HistoryView data={data as HistoryShape} />

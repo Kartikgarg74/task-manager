@@ -3,6 +3,18 @@
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+export type CardUpdate = {
+  id: string;
+  resolved: string;
+  duration_minutes: number;
+  summary: string;
+  impact: string;
+  commit_hash: string | null;
+  commit_landed: boolean;
+  created_at: string;
+  edited_at: string | null;
+};
+
 function authHeader(): Record<string, string> {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -30,6 +42,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+
+  listProjects: () => request<{ slug: string; name: string }[]>("/api/projects"),
 
   createProject: (name: string) =>
     request<{ slug: string; name: string; created: boolean }>("/api/projects", {
@@ -61,10 +75,13 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  getDigest: (slug: string, range: "today" | "week" | "month" = "today") =>
+  getCardUpdates: (slug: string, cardId: string) =>
+    request<CardUpdate[]>(`/api/projects/${slug}/cards/${cardId}/updates`),
+
+  getDigest: (slug: string, range: "today" | "yesterday" | "week" | "month" = "today") =>
     request(`/api/projects/${slug}/digest?range=${range}`),
 
-  getOverview: (range: "today" | "week" | "month" = "today") =>
+  getOverview: (range: "today" | "yesterday" | "week" | "month" = "today") =>
     request(`/api/overview?range=${range}`),
 
   listDevices: () => request("/api/devices"),
