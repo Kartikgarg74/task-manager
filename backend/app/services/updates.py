@@ -7,7 +7,16 @@ writes. See app/mcp_server.py and app/auth.py.
 
 import uuid
 
+from sqlalchemy import select
+
 from app.models import Update
+
+
+async def list_for_card(db, card_id: uuid.UUID) -> list[Update]:
+    result = await db.execute(
+        select(Update).where(Update.card_id == card_id).order_by(Update.created_at.desc())
+    )
+    return list(result.scalars())
 
 
 async def log_update(

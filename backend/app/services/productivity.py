@@ -96,6 +96,36 @@ async def project_efficiency(
     return compute_efficiency(rows)
 
 
+def resolve_range(range_: str, today: date) -> tuple[date, date]:
+    if range_ == "today":
+        return today, today
+    if range_ == "yesterday":
+        yesterday = today - timedelta(days=1)
+        return yesterday, yesterday
+    span = 7 if range_ == "week" else 30
+    return today - timedelta(days=span), today
+
+
+async def combined_efficiency(
+    db: AsyncSession, project_ids: list[uuid.UUID], start: date, end: date, tz: str
+) -> tuple[float, int]:
+    """The honest version of a cross-project score: pool every raw update first, then
+    run the same weighted formula once — never average each project's own already-computed
+    score, which silently distorts toward whichever project logged fewer hours."""
+    if not project_ids:
+        return 0.0, 0
+
+    rows_result = await db.execute(
+        select(Update, Card).join(Card, Update.card_id == Card.id).where(Card.project_id.in_(project_ids))
+    )
+    rows = []
+    for update, card in rows_result:
+        local_date = update.created_at.astimezone(_zoneinfo(tz)).date()
+        if start <= local_date <= end:
+            rows.append((card.complexity, update.resolved, update.duration_minutes))
+    return compute_efficiency(rows)
+
+
 async def device_breakdown(db: AsyncSession, project_id: uuid.UUID, day: date, tz: str) -> list[dict]:
     """Sheet 05: per-device minutes, reconstructed live from updates.device_id — never
     stored redundantly. Null device_id means the web app."""

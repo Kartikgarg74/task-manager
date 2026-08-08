@@ -45,18 +45,21 @@ async def generate_digest(db: AsyncSession, project: Project, digest_date: date)
 async def get_digest(
     db: AsyncSession, project: Project, range_: str
 ) -> dict:
-    """range_: 'today' (live, provisional) | 'week' | 'month' (locked digests history)."""
+    """range_: 'today' (live, provisional) | 'yesterday' (live, locked-in day) |
+    'week' | 'month' (locked digests history)."""
     tz = get_settings().app_timezone
     today = datetime.now(timezone.utc).date()
 
-    if range_ == "today":
-        done = await done_points_for_day(db, project.id, today, tz)
-        tomorrow = await tomorrow_points(db, project.id)
-        efficiency, minutes = await project_efficiency(db, project.id, today, tz)
+    if range_ in ("today", "yesterday"):
+        day = today if range_ == "today" else today - timedelta(days=1)
+        done = await done_points_for_day(db, project.id, day, tz)
+        tomorrow = await tomorrow_points(db, project.id) if range_ == "today" else []
+        efficiency, minutes = await project_efficiency(db, project.id, day, tz)
         return {
             "project": project.slug,
-            "range": "today",
-            "provisional": True,
+            "range": range_,
+            "date": day.isoformat(),
+            "provisional": range_ == "today",
             "done_points": done,
             "tomorrow_points": tomorrow,
             "minutes_worked": minutes,
@@ -78,7 +81,12 @@ async def get_digest(
         "range": range_,
         "provisional": False,
         "days": [
-            {"date": r.digest_date.isoformat(), "minutes_worked": r.minutes_worked, "efficiency_score": r.efficiency_score}
+            {
+                "date": r.digest_date.isoformat(),
+                "minutes_worked": r.minutes_worked,
+                "efficiency_score": r.efficiency_score,
+                "done_points": r.done_points,
+            }
             for r in rows
         ],
         "total_minutes": sum(r.minutes_worked for r in rows),

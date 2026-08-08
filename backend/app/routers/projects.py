@@ -5,15 +5,25 @@ trip), same tables, same broadcast-on-write as the MCP side.
 import uuid
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_web_user
 from app.database import get_db
+from app.models import Project
 from app.schemas import CreateCardRequest, CreateProjectRequest, LogUpdateRequest, MoveCardRequest
 from app.services import board, updates as update_service
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+@router.get("")
+async def list_projects(db: AsyncSession = Depends(get_db), _user: str = Depends(require_web_user)):
+    projects = (
+        await db.execute(select(Project).where(Project.status == "active").order_by(Project.name))
+    ).scalars().all()
+    return [{"slug": p.slug, "name": p.name} for p in projects]
 
 
 @router.post("")
@@ -52,6 +62,30 @@ async def move_card(
     card = await board.move_card(db, uuid.UUID(card_id), body.target_role)
     await manager.broadcast(slug, {"type": "card_moved", "card_id": str(card.id), "column_id": str(card.column_id)})
     return {"id": str(card.id), "column_id": str(card.column_id)}
+
+
+@router.get("/{slug}/cards/{card_id}/updates")
+async def list_card_updates(
+    slug: str,
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user: str = Depends(require_web_user),
+):
+    updates = await update_service.list_for_card(db, uuid.UUID(card_id))
+    return [
+        {
+            "id": str(u.id),
+            "resolved": u.resolved,
+            "duration_minutes": u.duration_minutes,
+            "summary": u.summary,
+            "impact": u.impact,
+            "commit_hash": u.commit_hash,
+            "commit_landed": u.commit_landed,
+            "created_at": u.created_at,
+            "edited_at": u.edited_at,
+        }
+        for u in updates
+    ]
 
 
 @router.post("/{slug}/cards/{card_id}/updates")
